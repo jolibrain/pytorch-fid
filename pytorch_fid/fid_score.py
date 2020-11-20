@@ -49,7 +49,7 @@ except ImportError:
     # If not tqdm is not available, provide a mock version of it
     def tqdm(x): return x
 
-from pytorch_fid.inception import InceptionV3
+from .inception import InceptionV3
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--batch-size', type=int, default=50,
@@ -229,15 +229,15 @@ def _compute_statistics_of_path(path, model, batch_size, dims, device):
     return m, s
 
 
-def calculate_fid_given_paths(paths, batch_size, device, dims):
+def calculate_fid_given_paths(paths, batch_size, device, dims,model=None):
     """Calculates the FID of two paths"""
     for p in paths:
         if not os.path.exists(p):
             raise RuntimeError('Invalid path: %s' % p)
 
-    block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
-
-    model = InceptionV3([block_idx]).to(device)
+    if model is None:
+        block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
+        model = InceptionV3([block_idx]).to(device)
 
     m1, s1 = _compute_statistics_of_path(paths[0], model, batch_size,
                                          dims, device)
@@ -246,7 +246,6 @@ def calculate_fid_given_paths(paths, batch_size, device, dims):
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
     return fid_value
-
 
 def main():
     args = parser.parse_args()
