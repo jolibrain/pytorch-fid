@@ -81,7 +81,7 @@ class ImagesPathDataset(torch.utils.data.Dataset):
         return img
 
 
-def get_activations(files, model, batch_size=50, dims=2048, device='cpu'):
+def get_activations(files, model, batch_size=50, dims=2048, device='cpu',transforms=TF.ToTensor()):
     """Calculates the activations of the pool_3 layer for all images.
 
     Params:
@@ -107,7 +107,7 @@ def get_activations(files, model, batch_size=50, dims=2048, device='cpu'):
                'Setting batch size to data size'))
         batch_size = len(files)
 
-    ds = ImagesPathDataset(files, transforms=TF.ToTensor())
+    ds = ImagesPathDataset(files, transforms=transforms)
     dl = torch.utils.data.DataLoader(ds, batch_size=batch_size,
                                      drop_last=False, num_workers=cpu_count())
 
@@ -192,7 +192,7 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
             np.trace(sigma2) - 2 * tr_covmean)
 
 
-def calculate_activation_statistics(files, model, batch_size=50, dims=2048, device='cpu'):
+def calculate_activation_statistics(files, model, batch_size=50, dims=2048, device='cpu',transforms=TF.ToTensor()):
     """Calculation of the statistics used by the FID.
     Params:
     -- files       : List of image files paths
@@ -209,23 +209,33 @@ def calculate_activation_statistics(files, model, batch_size=50, dims=2048, devi
     -- sigma : The covariance matrix of the activations of the pool_3 layer of
                the inception model.
     """
-    act = get_activations(files, model, batch_size, dims, device)
+    act = get_activations(files, model, batch_size, dims, device,transforms)
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
 
-def _compute_statistics_of_path(path, model, batch_size, dims, device):
+def _compute_statistics_of_path(path, model, batch_size, dims, device,transforms=TF.ToTensor()):
     if path.endswith('.npz'):
         f = np.load(path)
         m, s = f['mu'][:], f['sigma'][:]
         f.close()
+    elif os.path.isfile(path+'/paths.txt'):
+        files=[]
+        with  open(path+'/paths.txt', 'r') as f:
+            paths_list = f.read().split('\n')
+        for line in paths_list:
+            line_split = line.split(' ')
+            if line_split[0][-4:]=='.jpg' or line_split[0][-4:]=='.png':
+                files.append(line_split[0])
+        m, s = calculate_activation_statistics(files, model, batch_size,
+                                               dims, device,transforms)
+    
     else:
         path = pathlib.Path(path)
         files = list(path.glob('*.jpg')) + list(path.glob('*.png'))
         m, s = calculate_activation_statistics(files, model, batch_size,
-                                               dims, device)
-
+                                               dims, device,transforms)
     return m, s
 
 
