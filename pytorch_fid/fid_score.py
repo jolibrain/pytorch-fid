@@ -42,6 +42,7 @@ import torchvision.transforms as TF
 from scipy import linalg
 from torch.nn.functional import adaptive_avg_pool2d
 from PIL import Image
+import random
 
 try:
     from tqdm import tqdm
@@ -215,25 +216,26 @@ def calculate_activation_statistics(files, model, batch_size=50, dims=2048, devi
     return mu, sigma
 
 
-def _compute_statistics_of_path(path, model, batch_size, dims, device,transforms=TF.ToTensor()):
+def _compute_statistics_of_path(path, model, batch_size, dims, device,transforms=TF.ToTensor(),nb_max_img=float("inf")):
     if path.endswith('.npz'):
         f = np.load(path)
         m, s = f['mu'][:], f['sigma'][:]
         f.close()
-    elif os.path.isfile(path+'/paths.txt'):
-        files=[]
-        with  open(path+'/paths.txt', 'r') as f:
-            paths_list = f.read().split('\n')
-        for line in paths_list:
-            line_split = line.split(' ')
-            if line_split[0][-4:]=='.jpg' or line_split[0][-4:]=='.png':
-                files.append(line_split[0])
-        m, s = calculate_activation_statistics(files, model, batch_size,
-                                               dims, device,transforms)
-    
     else:
-        path = pathlib.Path(path)
-        files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*/*.jpg')) + list(path.glob('*/*.png'))
+        if os.path.isfile(path+'/paths.txt'):
+            files=[]
+            with  open(path+'/paths.txt', 'r') as f:
+                paths_list = f.read().split('\n')
+            for line in paths_list:
+                line_split = line.split(' ')
+                if line_split[0][-4:]=='.jpg' or line_split[0][-4:]=='.png':
+                    files.append(line_split[0])
+        else:
+            path = pathlib.Path(path)
+            files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*/*.jpg')) + list(path.glob('*/*.png'))
+
+        if nb_max_img < len(files):
+            files=random.sample(files, nb_max_img)
         m, s = calculate_activation_statistics(files, model, batch_size,
                                                dims, device,transforms)
     return m, s
